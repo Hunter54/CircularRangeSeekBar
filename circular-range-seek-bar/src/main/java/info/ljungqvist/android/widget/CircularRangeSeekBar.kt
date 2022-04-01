@@ -281,8 +281,8 @@ class CircularRangeSeekBar : FrameLayout {
             }
 
         if (changed) {
-            angle1 = (progress1.toDouble() * 360 / progressMax + startAngle).inDegrees()
-            angle2 = (progress2.toDouble() * 360 / progressMax + startAngle).inDegrees()
+            angle1 = (progress1.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
+            angle2 = (progress2.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
             post {
                 invalidate()
                 seekBarChangeListener?.onProgressChange(this, progress1, progress2, fromUser)
@@ -319,11 +319,11 @@ class CircularRangeSeekBar : FrameLayout {
                 .inDegrees()
 
         //Stop pointer from going over missing ARC area
-        if (angle > ((360 + endAngle - startAngle) % 360)) {
+        if (angle > arcSpan) {
             return
         }
 
-        val progress = (angle / 360.0 * progressMax + .5).toInt()
+        val progress = (angle / arcSpan * progressMax + .5).toInt()
 
         if (isThumb1) {
             setProgressInternal(progress, progress2, fromUser = true, forceChange = false)
@@ -334,7 +334,7 @@ class CircularRangeSeekBar : FrameLayout {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             val overflow = thumbSize / 2
             val r = halfSize - thumbSize / 2
-            val a = (progress.toDouble() * 360 / progressMax + startAngle).inDegrees()
+            val a = (progress.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
             val activeX = (cos(Math.toRadians(a)) * r) + halfSize
             val activeY = (sin(Math.toRadians(a)) * r) + halfSize
             drawableHotspotChanged(activeX.toFloat(), activeY.toFloat())
