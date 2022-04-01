@@ -41,6 +41,7 @@ class TestActivity : Activity() {
 
         val bar: CircularRangeSeekBar = findViewById(R.id.circular_range_seek_bar_2)
         bar.endAngle = 55.0
+        bar.setProgress(20,50)
 
         bar.seekBarChangeListener = CircularRangeSeekBar.OnSeekChangeListener{ _, p1, p2, fromUser ->
             logger.debug { "$p1 - $p2, from user: $fromUser" }

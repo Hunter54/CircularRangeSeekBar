@@ -326,8 +326,14 @@ class CircularRangeSeekBar : FrameLayout {
         val progress = (angle / arcSpan * progressMax + .5).toInt()
 
         if (isThumb1) {
+            if(progress >= progress2){
+                return
+            }
             setProgressInternal(progress, progress2, fromUser = true, forceChange = false)
         } else {
+            if(progress <= progress1){
+                return
+            }
             setProgressInternal(progress1, progress, fromUser = true, forceChange = false)
         }
 
