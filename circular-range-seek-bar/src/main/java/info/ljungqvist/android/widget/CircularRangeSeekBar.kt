@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+@file:Suppress("unused")
+
 package info.ljungqvist.android.widget
 
 import android.annotation.TargetApi
@@ -27,11 +29,11 @@ import android.os.Build
 import androidx.annotation.DrawableRes
 import android.util.AttributeSet
 import android.view.MotionEvent
-import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import mu.KLogging
 import mu.KotlinLogging
+import kotlin.math.*
 import kotlin.properties.Delegates
 
 class CircularRangeSeekBar : FrameLayout {
@@ -55,20 +57,21 @@ class CircularRangeSeekBar : FrameLayout {
 
     // The color of the progress ring
     private val arcPaint: Paint = Paint()
-            .apply {
-                color = Color.parseColor("#ff33b5e5")
-                isAntiAlias = true
-                strokeWidth = 5f
-                style = Paint.Style.STROKE
-            }
+        .apply {
+            color = Color.parseColor("#ff33b5e5")
+            isAntiAlias = true
+            strokeWidth = 5f
+            style = Paint.Style.STROKE
+        }
+
     // The progress circle ring background
     private val circlePaint: Paint = Paint()
-            .apply {
-                color = Color.GRAY
-                isAntiAlias = true
-                strokeWidth = 5f
-                style = Paint.Style.STROKE
-            }
+        .apply {
+            color = Color.GRAY
+            isAntiAlias = true
+            strokeWidth = 15f
+            style = Paint.Style.STROKE
+        }
 
     private val thumb1: Thumb = Thumb(context) { x, y -> thumbTouch(true, x, y) }
     private val thumb2: Thumb = Thumb(context) { x, y -> thumbTouch(false, x, y) }
@@ -76,11 +79,23 @@ class CircularRangeSeekBar : FrameLayout {
 
     private var progress1 = 0
     private var progress2 = 0
-    var startAngle by Delegates.observable(270.0) { _, old, new ->
+    var startAngle by Delegates.observable(125.0) { _, old, new ->
         if (old != new) {
-            setProgressInternal(progress1, progress2, false, true)
+            setProgressInternal(progress1, progress2, fromUser = false, forceChange = true)
         }
     }
+
+    private var arcSpan = 360.0
+
+    var endAngle = startAngle
+        set(value) {
+            field = value
+            arcSpan = if (endAngle == startAngle) {
+                360.0
+            } else {
+                (360 + endAngle - startAngle) % 360
+            }
+        }
     private var angle1 = startAngle
     private var angle2 = startAngle
 
@@ -97,26 +112,31 @@ class CircularRangeSeekBar : FrameLayout {
 
 
     private val ripple: NonChangingBoundsRippleDrawable? =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                NonChangingBoundsRippleDrawable(ColorStateList(arrayOf(intArrayOf()), intArrayOf(Color.LTGRAY)), null, null)
-                        .also { background = it }
-            } else {
-                null
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            NonChangingBoundsRippleDrawable(
+                ColorStateList(
+                    arrayOf(intArrayOf()),
+                    intArrayOf(Color.LTGRAY)
+                ), null, null
+            )
+                .also { background = it }
+        } else {
+            null
+        }
 
     fun setImageResource(@DrawableRes resId: Int) {
         thumb1.setImageResource(resId)
         thumb2.setImageResource(resId)
-        thumbSize = Math.max(
-                thumb1.drawable.let { Math.max(it.intrinsicWidth, it.intrinsicHeight) },
-                thumb2.drawable.let { Math.max(it.intrinsicWidth, it.intrinsicHeight) }
+        thumbSize = max(
+            thumb1.drawable.let { max(it.intrinsicWidth, it.intrinsicHeight) },
+            thumb2.drawable.let { max(it.intrinsicWidth, it.intrinsicHeight) }
         )
         updateRect()
         post { invalidate() }
     }
 
     fun setProgress(progress1: Int, progress2: Int) {
-        setProgressInternal(progress1, progress2, false, false)
+        setProgressInternal(progress1, progress2, fromUser = false, forceChange = false)
     }
 
     override fun onAttachedToWindow() {
@@ -127,24 +147,24 @@ class CircularRangeSeekBar : FrameLayout {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
 
-        val widthSize = View.MeasureSpec.getSize(widthMeasureSpec)
-        val heightSize = View.MeasureSpec.getSize(heightMeasureSpec)
+        val widthSize = MeasureSpec.getSize(widthMeasureSpec)
+        val heightSize = MeasureSpec.getSize(heightMeasureSpec)
 
         val width: Int =
-                if (View.MeasureSpec.getMode(widthMeasureSpec) == View.MeasureSpec.UNSPECIFIED) {
-                    Math.max(widthSize, heightSize)
-                } else {
-                    widthSize
-                }
+            if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED) {
+                max(widthSize, heightSize)
+            } else {
+                widthSize
+            }
 
         val height: Int =
-                if (View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.UNSPECIFIED) {
-                    Math.max(widthSize, heightSize)
-                } else {
-                    heightSize
-                }
+            if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) {
+                max(widthSize, heightSize)
+            } else {
+                heightSize
+            }
 
-        val newSize = Math.min(width, height)
+        val newSize = min(width, height)
         if (newSize != size) {
             size = newSize
             updateRect()
@@ -158,8 +178,22 @@ class CircularRangeSeekBar : FrameLayout {
     override fun onDraw(canvas: Canvas) {
         val mid = size.toFloat() / 2
         val radius = mid - (thumbSize.toFloat() / 2)
-        canvas.drawCircle(mid, mid, radius, circlePaint)
-        canvas.drawArc(arcRect, angle1.toFloat(), (angle2 - angle1).inDegrees().toFloat(), false, arcPaint)
+        //Check endAngle, if endAngle is not equal with startAngle, draw an Arc
+        if (arcSpan == 360.0) {
+            canvas.drawCircle(mid, mid, radius, circlePaint)
+        } else {
+            canvas.drawArc(
+                arcRect, startAngle.toFloat(),
+                arcSpan.toFloat(), false, circlePaint
+            )
+        }
+        canvas.drawArc(
+            arcRect,
+            angle1.toFloat(),
+            (angle2 - angle1).inDegrees().toFloat(),
+            false,
+            arcPaint
+        )
 
         setPadding(thumb1, angle1)
         setPadding(thumb2, angle2)
@@ -168,39 +202,40 @@ class CircularRangeSeekBar : FrameLayout {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean =
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    val mid = size.toFloat() / 2.0
-                    val innerR = mid - thumbSize
-                    val dx = event.x - mid
-                    val dy = event.y - mid
-                    val rSq = dx * dx + dy * dy
-                    logger.debug { "r = ${Math.sqrt(rSq)}, outer = $mid, inner = $innerR" }
-                    if (rSq < mid * mid && rSq > innerR * innerR) {
-                        isPressed = true
-                        if (sqDist(event.x, event.y, thumb1) <= sqDist(event.x, event.y, thumb2)) {
-                            thumb1
-                        } else {
-                            thumb2
-                        }
-                                .also { thumbActive = it }
-                                .internalOnTouchEvent(event)
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                val mid = size.toFloat() / 2.0
+                val innerR = mid - thumbSize
+                val dx = event.x - mid
+                val dy = event.y - mid
+                val rSq = dx * dx + dy * dy
+                logger.debug { "r = ${sqrt(rSq)}, outer = $mid, inner = $innerR" }
+                if (rSq < mid * mid && rSq > innerR * innerR) {
+                    isPressed = true
+                    //Check which thumb we should move
+                    if (sqDist(event.x, event.y, thumb1) <= sqDist(event.x, event.y, thumb2)) {
+                        thumb1
                     } else {
-                        false
+                        thumb2
                     }
-                }
-                MotionEvent.ACTION_MOVE ->
-                    thumbActive
-                            ?.internalOnTouchEvent(event)
-                            ?: false
-                else -> {
-                    isPressed = false
-                    thumbActive
-                            ?.also { thumbActive = null }
-                            ?.internalOnTouchEvent(event)
-                            ?: false
+                        .also { thumbActive = it }
+                        .internalOnTouchEvent(event)
+                } else {
+                    false
                 }
             }
+            MotionEvent.ACTION_MOVE ->
+                thumbActive
+                    ?.internalOnTouchEvent(event)
+                    ?: false
+            else -> {
+                isPressed = false
+                thumbActive
+                    ?.also { thumbActive = null }
+                    ?.internalOnTouchEvent(event)
+                    ?: false
+            }
+        }
 
     private fun sqDist(x: Float, y: Float, thumb: Thumb): Float {
         val dx = thumb.paddingLeft + thumbSize / 2 - x
@@ -210,8 +245,8 @@ class CircularRangeSeekBar : FrameLayout {
 
     private fun setPadding(thumb: Thumb, angle: Double) {
         val mid = (size - thumbSize) / 2
-        val paddingLeft = mid + (Math.cos(Math.toRadians(angle)) * mid).toInt()
-        val paddingTop = mid + (Math.sin(Math.toRadians(angle)) * mid).toInt()
+        val paddingLeft = mid + (cos(Math.toRadians(angle)) * mid).toInt()
+        val paddingTop = mid + (sin(Math.toRadians(angle)) * mid).toInt()
         thumb.setPadding(paddingLeft, paddingTop, thumbSize)
     }
 
@@ -222,23 +257,28 @@ class CircularRangeSeekBar : FrameLayout {
     }
 
 
-    private fun setProgressInternal(progress1: Int, progress2: Int, fromUser: Boolean, forceChange: Boolean) {
+    private fun setProgressInternal(
+        progress1: Int,
+        progress2: Int,
+        fromUser: Boolean,
+        forceChange: Boolean
+    ) {
         var changed = forceChange
 
         progress1
-                .limitProgress()
-                .takeUnless { it == this.progress1 }
-                ?.let {
-                    this.progress1 = it
-                    changed = true
-                }
+            .limitProgress()
+            .takeUnless { it == this.progress1 }
+            ?.let {
+                this.progress1 = it
+                changed = true
+            }
         progress2
-                .limitProgress()
-                .takeUnless { it == this.progress2 }
-                ?.let {
-                    this.progress2 = it
-                    changed = true
-                }
+            .limitProgress()
+            .takeUnless { it == this.progress2 }
+            ?.let {
+                this.progress2 = it
+                changed = true
+            }
 
         if (changed) {
             angle1 = (progress1.toDouble() * 360 / progressMax + startAngle).inDegrees()
@@ -268,37 +308,44 @@ class CircularRangeSeekBar : FrameLayout {
         val y = yIn.toDouble() - halfSize
 
         val angle =
-                (360.0 / 2.0 / Math.PI *
-                        if (0.0 == x) {
-                            if (y > 0) Math.PI / 2
-                            else -Math.PI / 2
-                        } else {
-                            Math.atan(y / x) + if (x >= 0) 0.0 else Math.PI
-                        } -
-                        startAngle)
-                        .inDegrees()
+            (360.0 / 2.0 / Math.PI *
+                    if (0.0 == x) {
+                        if (y > 0) Math.PI / 2
+                        else -Math.PI / 2
+                    } else {
+                        atan(y / x) + if (x >= 0) 0.0 else Math.PI
+                    } -
+                    startAngle)
+                .inDegrees()
+
+        //Stop pointer from going over missing ARC area
+        if (angle > ((360 + endAngle - startAngle) % 360)) {
+            return
+        }
 
         val progress = (angle / 360.0 * progressMax + .5).toInt()
 
         if (isThumb1) {
-            setProgressInternal(progress, progress2, true, false)
+            setProgressInternal(progress, progress2, fromUser = true, forceChange = false)
         } else {
-            setProgressInternal(progress1, progress, true, false)
+            setProgressInternal(progress1, progress, fromUser = true, forceChange = false)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             val overflow = thumbSize / 2
             val r = halfSize - thumbSize / 2
             val a = (progress.toDouble() * 360 / progressMax + startAngle).inDegrees()
-            val activeX = (Math.cos(Math.toRadians(a)) * r) + halfSize
-            val activeY = (Math.sin(Math.toRadians(a)) * r) + halfSize
+            val activeX = (cos(Math.toRadians(a)) * r) + halfSize
+            val activeY = (sin(Math.toRadians(a)) * r) + halfSize
             drawableHotspotChanged(activeX.toFloat(), activeY.toFloat())
             ripple?.setBoundsInternal(
-                    activeX.toInt() - overflow,
-                    activeY.toInt() - overflow,
-                    activeX.toInt() + overflow,
-                    activeY.toInt() + overflow)
-        }    }
+                activeX.toInt() - overflow,
+                activeY.toInt() - overflow,
+                activeX.toInt() + overflow,
+                activeY.toInt() + overflow
+            )
+        }
+    }
 
     private fun <T> uiProperty(value: T) = Delegates.observable(value) { _, old, new ->
         if (old != new) post { invalidate() }
@@ -308,38 +355,49 @@ class CircularRangeSeekBar : FrameLayout {
 
         @Suppress("FunctionName")
         fun OnSeekChangeListener(listener: (CircularRangeSeekBar, Int, Int, Boolean) -> Unit): OnSeekChangeListener =
-                object : OnSeekChangeListener {
-                    override fun onProgressChange(view: CircularRangeSeekBar, progress1: Int, progress2: Int, fromUser: Boolean) =
-                            listener(view, progress1, progress2, fromUser)
-                }
+            object : OnSeekChangeListener {
+                override fun onProgressChange(
+                    view: CircularRangeSeekBar,
+                    progress1: Int,
+                    progress2: Int,
+                    fromUser: Boolean
+                ) =
+                    listener(view, progress1, progress2, fromUser)
+            }
 
     }
 
     interface OnSeekChangeListener {
-        fun onProgressChange(view: CircularRangeSeekBar, progress1: Int, progress2: Int, fromUser: Boolean)
+        fun onProgressChange(
+            view: CircularRangeSeekBar,
+            progress1: Int,
+            progress2: Int,
+            fromUser: Boolean
+        )
     }
 
-    private class Thumb(context: Context, val updateLocation: (x: Float, y: Float) -> Unit) : ImageView(context) {
+    private class Thumb(context: Context, val updateLocation: (x: Float, y: Float) -> Unit) :
+        ImageView(context) {
 
         init {
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
             isClickable = true
             isFocusable = true
         }
 
         internal fun internalOnTouchEvent(event: MotionEvent): Boolean =
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        parent.requestDisallowInterceptTouchEvent(true)
-                        super.onTouchEvent(event)
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        updateLocation(event.x, event.y)
-                        true
-                    }
-                    else ->
-                        super.onTouchEvent(event)
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    parent.requestDisallowInterceptTouchEvent(true)
+                    super.onTouchEvent(event)
                 }
+                MotionEvent.ACTION_MOVE -> {
+                    updateLocation(event.x, event.y)
+                    true
+                }
+                else ->
+                    super.onTouchEvent(event)
+            }
 
         fun setPadding(left: Int, top: Int, thumbSize: Int) {
             setPadding(left, top, 0, 0)
