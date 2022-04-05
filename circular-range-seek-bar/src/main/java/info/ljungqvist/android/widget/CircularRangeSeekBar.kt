@@ -96,6 +96,7 @@ class CircularRangeSeekBar : FrameLayout {
                 (360 + endAngle - startAngle) % 360
             }
         }
+
     private var angle1 = startAngle
     private var angle2 = startAngle
 
@@ -107,7 +108,7 @@ class CircularRangeSeekBar : FrameLayout {
 
     init {
         setBackgroundColor(Color.TRANSPARENT)
-        setImageResource(R.drawable.scrubber_control_holo)
+        setImageResource(R.drawable.ic_rectangle_45)
     }
 
 
@@ -126,7 +127,9 @@ class CircularRangeSeekBar : FrameLayout {
 
     fun setImageResource(@DrawableRes resId: Int) {
         thumb1.setImageResource(resId)
+
         thumb2.setImageResource(resId)
+
         thumbSize = max(
             thumb1.drawable.let { max(it.intrinsicWidth, it.intrinsicHeight) },
             thumb2.drawable.let { max(it.intrinsicWidth, it.intrinsicHeight) }
@@ -137,6 +140,8 @@ class CircularRangeSeekBar : FrameLayout {
 
     fun setProgress(progress1: Int, progress2: Int) {
         setProgressInternal(progress1, progress2, fromUser = false, forceChange = false)
+        thumb1.rotation = getThumbRotationAngle(progress1).toFloat()
+        thumb2.rotation = getThumbRotationAngle(progress2).toFloat()
     }
 
     override fun onAttachedToWindow() {
@@ -195,8 +200,8 @@ class CircularRangeSeekBar : FrameLayout {
             arcPaint
         )
 
-        setPadding(thumb1, angle1)
-        setPadding(thumb2, angle2)
+        setThumbCoordinates(thumb1, angle1)
+        setThumbCoordinates(thumb2, angle2)
 
         super.onDraw(canvas)
     }
@@ -238,16 +243,16 @@ class CircularRangeSeekBar : FrameLayout {
         }
 
     private fun sqDist(x: Float, y: Float, thumb: Thumb): Float {
-        val dx = thumb.paddingLeft + thumbSize / 2 - x
-        val dy = thumb.paddingTop + thumbSize / 2 - y
+        val dx = thumb.x + thumbSize / 2 - x
+        val dy = thumb.y + thumbSize / 2 - y
         return dx * dx + dy * dy
     }
 
-    private fun setPadding(thumb: Thumb, angle: Double) {
+    private fun setThumbCoordinates(thumb: Thumb, angle: Double) {
         val mid = (size - thumbSize) / 2
-        val paddingLeft = mid + (cos(Math.toRadians(angle)) * mid).toInt()
-        val paddingTop = mid + (sin(Math.toRadians(angle)) * mid).toInt()
-        thumb.setPadding(paddingLeft, paddingTop, thumbSize)
+        val coordinateX = mid + (cos(Math.toRadians(angle)) * mid).toFloat()
+        val coordinateY = mid + (sin(Math.toRadians(angle)) * mid).toFloat()
+        thumb.setCoordinates(coordinateX, coordinateY, thumbSize)
     }
 
     private fun updateRect() {
@@ -281,8 +286,8 @@ class CircularRangeSeekBar : FrameLayout {
             }
 
         if (changed) {
-            angle1 = (progress1.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
-            angle2 = (progress2.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
+            angle1 = getAngleFromProgress(progress1)
+            angle2 = getAngleFromProgress(progress2)
             post {
                 invalidate()
                 seekBarChangeListener?.onProgressChange(this, progress1, progress2, fromUser)
@@ -290,17 +295,26 @@ class CircularRangeSeekBar : FrameLayout {
         }
     }
 
+    private fun getAngleFromProgress(progress: Int): Double =
+        (progress.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
+
+
     private tailrec fun Int.limitProgress(): Int = when {
         this < 0 -> (this + progressMax).limitProgress()
         this >= progressMax -> (this - progressMax).limitProgress()
         else -> this
     }
 
+
     private tailrec fun Double.inDegrees(): Double = when {
         this < 0.0 -> (this + 360.0).inDegrees()
         this >= 360.0 -> (this - 360.0).inDegrees()
         else -> this
     }
+
+    var indAngle = startAngle
+
+    private fun getThumbRotationAngle(progress: Int): Double = getAngleFromProgress(progress) - 62
 
     private fun thumbTouch(isThumb1: Boolean, xIn: Float, yIn: Float) {
         val halfSize = size.toDouble() / 2.0
@@ -326,15 +340,17 @@ class CircularRangeSeekBar : FrameLayout {
         val progress = (angle / arcSpan * progressMax + .5).toInt()
 
         if (isThumb1) {
-            if(progress >= progress2){
+            if (progress >= progress2) {
                 return
             }
             setProgressInternal(progress, progress2, fromUser = true, forceChange = false)
+            thumb1.rotation = getThumbRotationAngle(progress).toFloat()
         } else {
-            if(progress <= progress1){
+            if (progress <= progress1) {
                 return
             }
             setProgressInternal(progress1, progress, fromUser = true, forceChange = false)
+            thumb2.rotation = getThumbRotationAngle(progress).toFloat()
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -405,8 +421,9 @@ class CircularRangeSeekBar : FrameLayout {
                     super.onTouchEvent(event)
             }
 
-        fun setPadding(left: Int, top: Int, thumbSize: Int) {
-            setPadding(left, top, 0, 0)
+        fun setCoordinates(left: Float, top: Float, thumbSize: Int) {
+            this.x = left
+            this.y = top
         }
 
 
