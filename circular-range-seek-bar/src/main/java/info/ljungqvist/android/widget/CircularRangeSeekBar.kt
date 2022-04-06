@@ -69,7 +69,7 @@ class CircularRangeSeekBar : FrameLayout {
         .apply {
             color = Color.GRAY
             isAntiAlias = true
-            strokeWidth = 15f
+            strokeWidth = 30f
             style = Paint.Style.STROKE
         }
 
@@ -103,7 +103,7 @@ class CircularRangeSeekBar : FrameLayout {
     var progressMax by uiProperty(100)
 
     private var size = -1
-    private var thumbSize = -1
+    private var thumbSize = ThumbSizes(-1,-1)
     private val arcRect = RectF()        // The rectangle containing our circles and arcs
 
     init {
@@ -130,10 +130,9 @@ class CircularRangeSeekBar : FrameLayout {
 
         thumb2.setImageResource(resId)
 
-        thumbSize = max(
-            thumb1.drawable.let { max(it.intrinsicWidth, it.intrinsicHeight) },
-            thumb2.drawable.let { max(it.intrinsicWidth, it.intrinsicHeight) }
-        )
+        thumb1.let {
+            thumbSize = ThumbSizes(it.drawable.intrinsicWidth,it.drawable.intrinsicHeight)
+        }
         updateRect()
         post { invalidate() }
     }
@@ -182,7 +181,7 @@ class CircularRangeSeekBar : FrameLayout {
 
     override fun onDraw(canvas: Canvas) {
         val mid = size.toFloat() / 2
-        val radius = mid - (thumbSize.toFloat() / 2)
+        val radius = mid - (thumbSize.height.toFloat() / 2)
         //Check endAngle, if endAngle is not equal with startAngle, draw an Arc
         if (arcSpan == 360.0) {
             canvas.drawCircle(mid, mid, radius, circlePaint)
@@ -210,7 +209,7 @@ class CircularRangeSeekBar : FrameLayout {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 val mid = size.toFloat() / 2.0
-                val innerR = mid - thumbSize
+                val innerR = mid - thumbSize.height
                 val dx = event.x - mid
                 val dy = event.y - mid
                 val rSq = dx * dx + dy * dy
@@ -243,20 +242,21 @@ class CircularRangeSeekBar : FrameLayout {
         }
 
     private fun sqDist(x: Float, y: Float, thumb: Thumb): Float {
-        val dx = thumb.x + thumbSize / 2 - x
-        val dy = thumb.y + thumbSize / 2 - y
+        val dx = thumb.x + thumbSize.width / 2 - x
+        val dy = thumb.y + thumbSize.height / 2 - y
         return dx * dx + dy * dy
     }
 
     private fun setThumbCoordinates(thumb: Thumb, angle: Double) {
-        val mid = (size - thumbSize) / 2
-        val coordinateX = mid + (cos(Math.toRadians(angle)) * mid).toFloat()
-        val coordinateY = mid + (sin(Math.toRadians(angle)) * mid).toFloat()
+        val midX = (size - thumbSize.width).toFloat() / 2
+        val midY = (size - thumbSize.height).toFloat() / 2
+        val coordinateX = midX + (cos(Math.toRadians(angle)) * midX).toFloat()
+        val coordinateY = midY + (sin(Math.toRadians(angle)) * midY).toFloat()
         thumb.setCoordinates(coordinateX, coordinateY, thumbSize)
     }
 
     private fun updateRect() {
-        val upperLeft = thumbSize.toFloat() / 2
+        val upperLeft = thumbSize.height.toFloat() / 2
         val lowerRight = size.toFloat() - upperLeft
         arcRect.set(upperLeft, upperLeft, lowerRight, lowerRight)
     }
@@ -353,20 +353,20 @@ class CircularRangeSeekBar : FrameLayout {
             thumb2.rotation = getThumbRotationAngle(progress).toFloat()
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            val overflow = thumbSize / 2
-            val r = halfSize - thumbSize / 2
-            val a = (progress.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
-            val activeX = (cos(Math.toRadians(a)) * r) + halfSize
-            val activeY = (sin(Math.toRadians(a)) * r) + halfSize
-            drawableHotspotChanged(activeX.toFloat(), activeY.toFloat())
-            ripple?.setBoundsInternal(
-                activeX.toInt() - overflow,
-                activeY.toInt() - overflow,
-                activeX.toInt() + overflow,
-                activeY.toInt() + overflow
-            )
-        }
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+//            val overflow = thumbSize / 2
+//            val r = halfSize - thumbSize / 2
+//            val a = (progress.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
+//            val activeX = (cos(Math.toRadians(a)) * r) + halfSize
+//            val activeY = (sin(Math.toRadians(a)) * r) + halfSize
+//            drawableHotspotChanged(activeX.toFloat(), activeY.toFloat())
+//            ripple?.setBoundsInternal(
+//                activeX.toInt() - overflow,
+//                activeY.toInt() - overflow,
+//                activeX.toInt() + overflow,
+//                activeY.toInt() + overflow
+//            )
+//        }
     }
 
     private fun <T> uiProperty(value: T) = Delegates.observable(value) { _, old, new ->
@@ -421,7 +421,7 @@ class CircularRangeSeekBar : FrameLayout {
                     super.onTouchEvent(event)
             }
 
-        fun setCoordinates(left: Float, top: Float, thumbSize: Int) {
+        fun setCoordinates(left: Float, top: Float, thumbSize: ThumbSizes) {
             this.x = left
             this.y = top
         }
@@ -432,6 +432,11 @@ class CircularRangeSeekBar : FrameLayout {
         private companion object : KLogging()
 
     }
+
+    data class ThumbSizes(
+        val width: Int,
+        val height: Int
+    )
 }
 
 
