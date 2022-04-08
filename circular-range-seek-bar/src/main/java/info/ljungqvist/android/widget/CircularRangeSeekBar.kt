@@ -29,6 +29,7 @@ import android.os.Build
 import androidx.annotation.DrawableRes
 import android.util.AttributeSet
 import android.view.MotionEvent
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import mu.KLogging
@@ -79,6 +80,9 @@ class CircularRangeSeekBar : FrameLayout {
 
     private var progress1 = 0
     private var progress2 = 0
+
+    //used for setting how close the two thumbs can get to each other
+    var minThumbDifference = 1
     var startAngle by Delegates.observable(125.0) { _, old, new ->
         if (old != new) {
             setProgressInternal(progress1, progress2, fromUser = false, forceChange = true)
@@ -100,10 +104,10 @@ class CircularRangeSeekBar : FrameLayout {
     private var angle1 = startAngle
     private var angle2 = startAngle
 
-    var progressMax by uiProperty(100)
+    var maxProgress by uiProperty(100)
 
     private var size = -1
-    private var thumbSize = ThumbSizes(-1,-1)
+    private var thumbSize = ThumbSizes(-1, -1)
     private val arcRect = RectF()        // The rectangle containing our circles and arcs
 
     init {
@@ -111,6 +115,7 @@ class CircularRangeSeekBar : FrameLayout {
         setImageResource(R.drawable.ic_rectangle_45)
     }
 
+    var useOneThumb = false
 
     private val ripple: NonChangingBoundsRippleDrawable? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -127,11 +132,10 @@ class CircularRangeSeekBar : FrameLayout {
 
     fun setImageResource(@DrawableRes resId: Int) {
         thumb1.setImageResource(resId)
-
         thumb2.setImageResource(resId)
 
         thumb1.let {
-            thumbSize = ThumbSizes(it.drawable.intrinsicWidth,it.drawable.intrinsicHeight)
+            thumbSize = ThumbSizes(it.drawable.intrinsicWidth, it.drawable.intrinsicHeight)
         }
         updateRect()
         post { invalidate() }
@@ -146,6 +150,9 @@ class CircularRangeSeekBar : FrameLayout {
     override fun onAttachedToWindow() {
         addView(thumb1)
         addView(thumb2)
+        if (useOneThumb) {
+            thumb2.visibility = View.GONE
+        }
         super.onAttachedToWindow()
     }
 
@@ -191,13 +198,15 @@ class CircularRangeSeekBar : FrameLayout {
                 arcSpan.toFloat(), false, circlePaint
             )
         }
-        canvas.drawArc(
-            arcRect,
-            angle1.toFloat(),
-            (angle2 - angle1).inDegrees().toFloat(),
-            false,
-            arcPaint
-        )
+        if (!useOneThumb) {
+            canvas.drawArc(
+                arcRect,
+                angle1.toFloat(),
+                (angle2 - angle1).inDegrees().toFloat(),
+                false,
+                arcPaint
+            )
+        }
 
         setThumbCoordinates(thumb1, angle1)
         setThumbCoordinates(thumb2, angle2)
@@ -220,7 +229,11 @@ class CircularRangeSeekBar : FrameLayout {
                     if (sqDist(event.x, event.y, thumb1) <= sqDist(event.x, event.y, thumb2)) {
                         thumb1
                     } else {
-                        thumb2
+                        if (useOneThumb) {
+                            thumb1
+                        } else {
+                            thumb2
+                        }
                     }
                         .also { thumbActive = it }
                         .internalOnTouchEvent(event)
@@ -296,12 +309,12 @@ class CircularRangeSeekBar : FrameLayout {
     }
 
     private fun getAngleFromProgress(progress: Int): Double =
-        (progress.toDouble() * arcSpan / progressMax + startAngle).inDegrees()
+        (progress.toDouble() * arcSpan / maxProgress + startAngle).inDegrees()
 
 
     private tailrec fun Int.limitProgress(): Int = when {
-        this < 0 -> (this + progressMax).limitProgress()
-        this >= progressMax -> (this - progressMax).limitProgress()
+        this < 0 -> (this + maxProgress).limitProgress()
+        this >= maxProgress -> (this - maxProgress).limitProgress()
         else -> this
     }
 
@@ -337,16 +350,16 @@ class CircularRangeSeekBar : FrameLayout {
             return
         }
 
-        val progress = (angle / arcSpan * progressMax + .5).toInt()
+        val progress = (angle / arcSpan * maxProgress + .5).toInt()
 
         if (isThumb1) {
-            if (progress >= progress2) {
+            if (progress > progress2 - minThumbDifference) {
                 return
             }
             setProgressInternal(progress, progress2, fromUser = true, forceChange = false)
             thumb1.rotation = getThumbRotationAngle(progress).toFloat()
         } else {
-            if (progress <= progress1) {
+            if (progress < progress1 + minThumbDifference || useOneThumb) {
                 return
             }
             setProgressInternal(progress1, progress, fromUser = true, forceChange = false)
