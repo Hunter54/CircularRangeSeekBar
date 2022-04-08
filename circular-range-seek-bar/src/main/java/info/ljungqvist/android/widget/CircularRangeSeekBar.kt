@@ -83,6 +83,15 @@ class CircularRangeSeekBar : FrameLayout {
 
     //used for setting how close the two thumbs can get to each other
     var minThumbDifference = 1
+
+    // used to disable the second thumb selector
+    var useOneThumb = false
+        set(value) {
+            field = value
+            if (value)
+                minThumbDifference = 0
+        }
+
     var startAngle by Delegates.observable(125.0) { _, old, new ->
         if (old != new) {
             setProgressInternal(progress1, progress2, fromUser = false, forceChange = true)
@@ -115,8 +124,6 @@ class CircularRangeSeekBar : FrameLayout {
         setImageResource(R.drawable.ic_rectangle_45)
     }
 
-    var useOneThumb = false
-
     private val ripple: NonChangingBoundsRippleDrawable? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             NonChangingBoundsRippleDrawable(
@@ -141,7 +148,7 @@ class CircularRangeSeekBar : FrameLayout {
         post { invalidate() }
     }
 
-    fun setProgress(progress1: Int, progress2: Int) {
+    fun setProgress(progress1: Int, progress2: Int = maxProgress-1) {
         setProgressInternal(progress1, progress2, fromUser = false, forceChange = false)
         thumb1.rotation = getThumbRotationAngle(progress1).toFloat()
         thumb2.rotation = getThumbRotationAngle(progress2).toFloat()
